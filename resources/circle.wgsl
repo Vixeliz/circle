@@ -6,6 +6,8 @@ struct VertexOutput {
 
 struct Circle {
     size: f32,
+	res_x: f32,
+	res_y: f32
 }
 
 @group(1) @binding(0)
@@ -44,12 +46,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     modulo_euclidean(in.uv.x * texture_size.x,density),
     modulo_euclidean(in.uv.y * texture_size.y,density)) - vec2(density/2.0);
     let dist_squared = dot(pos, pos);
-    var alpha = 1.0;
-    if dist_squared > (circle.size * circle.size)/4.0 {
-        alpha = 0.0;
-    }
-
 	let uv = (round(circle_pos - vec2(0.5)) * scale) / texture_size;
+	var color = textureSample(t, s, uv) * in.color;
+    if dist_squared > (circle.size * circle.size)/4.0 {
+        color.a = 0.0;
+    }
+	// let screen_distance = distance(in.position.xy, vec2(circle.res_x, circle.res_y));
+	let screen_distance = distance(in.position.xy, vec2(circle.res_x / 2.0, circle.res_y / 2.0));
+
+	if screen_distance > circle.res_y / 2.0 {
+		color.a = 0.0;
+	}
+
+	if screen_distance < circle.res_y / 2.0 && color.a == 0.0 {
+		color.r = 0.0;
+		color.g = 0.0;
+		color.b = 0.0;
+		color.a = 1.0;
+	}
+
 	// let uv = (round(circle_pos) * scale) / texture_size;
-    return textureSample(t, s, uv) * in.color * alpha;
+    // return textureSample(t, s, uv) * in.color * alpha;
+	return color;
+// discard;
 }
