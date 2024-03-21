@@ -3,15 +3,15 @@
 use crevice::std140::AsStd140;
 // use ggegui::{egui, Gui};
 use ggez::event;
-use ggez::glam::{Vec2, Vec3};
+use ggez::glam::Vec3;
 use ggez::graphics::{
-    self, BlendMode, Camera3d, Canvas3d, Color, DrawMode, DrawParam, DrawParam3d, FillOptions,
-    Image, ImageFormat, Mesh, Mesh3dBuilder, MeshBuilder, Rect, ScreenImage,
+    self, Camera3d, Canvas3d, Color, DrawParam, DrawParam3d, Image, ImageFormat, Mesh3dBuilder,
+    ScreenImage, Vertex3d,
 };
 use ggez::input::keyboard::KeyCode;
 use ggez::{Context, GameResult};
+use std::env;
 use std::path;
-use std::{env, fs};
 
 #[derive(AsStd140)]
 struct Circle {
@@ -24,6 +24,7 @@ struct MainState {
     // image: Image,
     circle: Circle,
     shader: graphics::Shader,
+    shader_3d: graphics::Shader,
     params: graphics::ShaderParams<Circle>,
     cube: graphics::Mesh3d,
     camera: Camera3d,
@@ -34,21 +35,67 @@ impl MainState {
     fn new(ctx: &mut Context) -> GameResult<MainState> {
         let mut camera = Camera3d::default();
         camera.transform.yaw = 90.0;
-
         let circle = Circle {
-            size: 6.5,
+            size: 7.0,
             res_x: 100.0,
             res_y: 100.0,
         };
         let shader = graphics::ShaderBuilder::new()
             .fragment_path("/circle.wgsl")
             .build(&ctx.gfx)?;
+        let shader_3d = graphics::ShaderBuilder::new()
+            .fragment_path("/shader_3d.wgsl")
+            .build(&ctx.gfx)?;
         let params = graphics::ShaderParamsBuilder::new(&circle).build(ctx);
         let image = Image::from_path(ctx, "/test.jpg")?;
+        let color = Color::from_rgb(75, 75, 75);
+        let vertex_data = vec![
+            // front (0.0, 0.0, 1.0)
+            Vertex3d::new([-1.0, -1.0, 1.0], [0.0, 0.0], color, [0.0, 1.0, 0.0]),
+            Vertex3d::new([1.0, -1.0, 1.0], [1.0, 0.0], color, [0.0, 1.0, 0.0]),
+            Vertex3d::new([1.0, 1.0, 1.0], [1.0, 1.0], color, [0.0, 1.0, 0.0]),
+            Vertex3d::new([-1.0, 1.0, 1.0], [0.0, 1.0], color, [0.0, 0.0, 1.0]),
+            // back (0.0, 0.0, -1.0)
+            Vertex3d::new([-1.0, 1.0, -1.0], [1.0, 0.0], None, [0.0, 0.0, -1.0]),
+            Vertex3d::new([1.0, 1.0, -1.0], [0.0, 0.0], None, [0.0, 0.0, -1.0]),
+            Vertex3d::new([1.0, -1.0, -1.0], [0.0, 1.0], None, [0.0, 0.0, -1.0]),
+            Vertex3d::new([-1.0, -1.0, -1.0], [1.0, 1.0], None, [0.0, 0.0, -1.0]),
+            // right (1.0, 0.0, 0.0)
+            Vertex3d::new([1.0, -1.0, -1.0], [0.0, 0.0], color, [1.0, 0.0, 0.0]),
+            Vertex3d::new([1.0, 1.0, -1.0], [1.0, 0.0], color, [1.0, 0.0, 0.0]),
+            Vertex3d::new([1.0, 1.0, 1.0], [1.0, 1.0], color, [1.0, 0.0, 0.0]),
+            Vertex3d::new([1.0, -1.0, 1.0], [0.0, 1.0], color, [1.0, 0.0, 0.0]),
+            // left (-1.0, 0.0, 0.0)
+            Vertex3d::new([-1.0, -1.0, 1.0], [1.0, 0.0], None, [-1.0, 0.0, 0.0]),
+            Vertex3d::new([-1.0, 1.0, 1.0], [0.0, 0.0], None, [-1.0, 0.0, 0.0]),
+            Vertex3d::new([-1.0, 1.0, -1.0], [0.0, 1.0], None, [-1.0, 0.0, 0.0]),
+            Vertex3d::new([-1.0, -1.0, -1.0], [1.0, 1.0], None, [-1.0, 0.0, 0.0]),
+            // top (0.0, 1.0, 0.0)
+            Vertex3d::new([1.0, 1.0, -1.0], [1.0, 0.0], None, [0.0, 1.0, 0.0]),
+            Vertex3d::new([-1.0, 1.0, -1.0], [0.0, 0.0], None, [0.0, 1.0, 0.0]),
+            Vertex3d::new([-1.0, 1.0, 1.0], [0.0, 1.0], None, [0.0, 1.0, 0.0]),
+            Vertex3d::new([1.0, 1.0, 1.0], [1.0, 1.0], None, [0.0, 1.0, 0.0]),
+            // bottom (0.0, -1.0, 0.0)
+            Vertex3d::new([1.0, -1.0, 1.0], [0.0, 0.0], color, [0.0, -1.0, 0.0]),
+            Vertex3d::new([-1.0, -1.0, 1.0], [1.0, 0.0], color, [0.0, -1.0, 0.0]),
+            Vertex3d::new([-1.0, -1.0, -1.0], [1.0, 1.0], color, [0.0, -1.0, 0.0]),
+            Vertex3d::new([1.0, -1.0, -1.0], [0.0, 1.0], color, [0.0, -1.0, 0.0]),
+        ];
+        #[rustfmt::skip]
+        let index_data: Vec<u32> = vec![
+             0,  1,  2,  2,  3,  0, // top
+             4,  5,  6,  6,  7,  4, // bottom
+             8,  9, 10, 10, 11,  8, // right
+            12, 13, 14, 14, 15, 12, // left
+            16, 17, 18, 18, 19, 16, // front
+            20, 21, 22, 22, 23, 20, // back
+        ];
+
         let cube = Mesh3dBuilder::new()
-            .cube(Vec3::splat(1.0))
+            .from_data(vertex_data, index_data, None)
             .texture(image)
             .build(ctx);
+
         camera.transform.yaw = 0.0;
         camera.transform.pitch = 0.0;
         camera.projection.zfar = 1000.0;
@@ -57,6 +104,7 @@ impl MainState {
 
         Ok(MainState {
             // image,
+            shader_3d,
             circle,
             shader,
             params,
@@ -70,8 +118,8 @@ impl MainState {
 impl event::EventHandler for MainState {
     fn key_down_event(
         &mut self,
-        ctx: &mut Context,
-        input: ggez::input::keyboard::KeyInput,
+        _ctx: &mut Context,
+        _input: ggez::input::keyboard::KeyInput,
         _repeated: bool,
     ) -> Result<(), ggez::GameError> {
         Ok(())
@@ -181,38 +229,19 @@ impl event::EventHandler for MainState {
             Canvas3d::from_screen_image(ctx, &mut canvas_image, Color::from_rgba(0, 0, 0, 0));
 
         canvas3d.set_projection(self.camera.to_matrix());
-
+        canvas3d.set_shader(&self.shader_3d);
         let draw_param = DrawParam3d::default();
         canvas3d.draw(&self.cube, draw_param);
 
         canvas3d.finish(ctx)?;
 
-        // let mut canvas = graphics::Canvas::from_frame(ctx, Color::from_rgba(255, 255, 255, 0));
         let mut canvas = graphics::Canvas::from_frame(ctx, Color::from_rgba(0, 0, 0, 0));
-        // canvas.set_blend_mode(BlendMode::PREMULTIPLIED);
-        // let middle = Vec2::new(
-        //     ctx.gfx.drawable_size().0 / 2.0,
-        //     ctx.gfx.drawable_size().1 / 2.0,
-        // );
-        // let circle = Mesh::new_circle(
-        //     ctx,
-        //     DrawMode::Fill(FillOptions::DEFAULT),
-        //     middle,
-        //     ctx.gfx.drawable_size().1 / 2.0,
-        //     0.5,
-        //     Color::BLACK,
-        // )?;
-        // canvas.draw(&circle, DrawParam::default().dest(Vec2::ZERO));
         // canvas.draw(&self.gui, DrawParam::default().dest(Vec2::ZERO));
 
-        // canvas.draw(&self.image, draw_param);
         self.params.set_uniforms(ctx, &self.circle);
         canvas.set_shader(&self.shader);
         canvas.set_shader_params(&self.params);
 
-        // let draw_param = DrawParam::default()
-        //     .scale(Vec2::splat(2.0))
-        //     .dest(Vec2::new(100.0, 100.0));
         canvas.draw(&canvas_image.image(ctx), DrawParam::default());
 
         canvas.finish(ctx)?;
